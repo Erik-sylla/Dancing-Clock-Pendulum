@@ -1,11 +1,11 @@
 name: Deploy Pendulum Defaults Cloud Function
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'gcf-pendulum-defaults/**'
+  #push:
+  #  branches:
+  #    - main
+  #  paths:
+  #    - 'gcf-pendulum-defaults/**'
   workflow_dispatch:  # allow manual trigger from GitHub UI
 
 jobs:
