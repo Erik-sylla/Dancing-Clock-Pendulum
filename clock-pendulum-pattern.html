@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Clock String Pendulum · Pattern Drawer</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,100..900&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0a0a0f;
+      --surface: #12121a;
+      --border:  #2a2a3a;
+      --accent:  #c8b4fa;
+      --accent2: #fa9fc8;
+      --gold:    #f5d97a;
+      --text:    #e8e4f0;
+      --muted:   #6b6880;
+    }
+
+    html, body { width:100%; height:100%; background:var(--bg); color:var(--text);
+      font-family:'DM Mono',monospace; overflow:hidden; }
+
+    #app { display:grid; grid-template-columns:1fr 280px; height:100vh; }
+
+    #canvas-wrap { position:relative; display:flex; align-items:center;
+      justify-content:center; overflow:hidden; }
+    canvas { display:block; cursor:crosshair; }
+    #canvas-wrap::before {
+      content:''; position:absolute; inset:0;
+      background-image:
+        linear-gradient(var(--border) 1px,transparent 1px),
+        linear-gradient(90deg,var(--border) 1px,transparent 1px);
+      background-size:60px 60px; opacity:.15; pointer-events:none;
+    }
+
+    #panel { background:var(--surface); border-left:1px solid var(--border);
+      display:flex; flex-direction:column; padding:28px 20px; gap:20px;
+      overflow-y:auto; }
+
+    .panel-title { font-family:'Fraunces',serif; font-weight:200; font-size:1.45rem;
+      line-height:1.2; letter-spacing:-0.01em; }
+    .panel-title em { font-style:italic; color:var(--accent); }
+    .subtitle { font-size:.65rem; color:var(--muted); line-height:1.6; margin-top:-14px; }
+    .divider { height:1px; background:var(--border); }
+
+    .ctrl-group { display:flex; flex-direction:column; gap:14px; }
+    .ctrl-label { font-size:.62rem; letter-spacing:.12em; text-transform:uppercase;
+      color:var(--muted); margin-bottom:2px; }
+    .ctrl-row { display:flex; flex-direction:column; gap:6px; }
+    .ctrl-row-inline { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+    input[type=range] { -webkit-appearance:none; width:100%; height:2px;
+      background:var(--border); border-radius:2px; outline:none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px;
+      border-radius:50%; background:var(--accent); cursor:pointer; transition:transform .15s; }
+    input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.3); }
+
+    .val-badge { font-size:.68rem; color:var(--accent); min-width:42px; text-align:right; }
+
+    .dot { display:inline-block; width:8px; height:8px; border-radius:50%;
+      margin-right:6px; vertical-align:middle; }
+
+    .btn-row { display:flex; gap:8px; flex-wrap:wrap; }
+    button { font-family:'DM Mono',monospace; font-size:.65rem; letter-spacing:.08em;
+      text-transform:uppercase; padding:7px 14px; border-radius:4px;
+      border:1px solid var(--border); background:transparent; color:var(--text);
+      cursor:pointer; transition:background .15s,border-color .15s,color .15s; white-space:nowrap; }
+    button:hover { background:var(--border); }
+    button.primary { background:var(--accent); border-color:var(--accent); color:#0a0a0f; }
+    button.primary:hover { opacity:.85; }
+    button.danger { border-color:var(--accent2); color:var(--accent2); }
+    button.danger:hover { background:rgba(250,159,200,.1); }
+
+    #status-row { display:flex; align-items:center; gap:8px;
+      font-size:.62rem; color:var(--muted); }
+    #status-dot { width:7px; height:7px; border-radius:50%; background:var(--muted);
+      transition:background .3s; }
+    #status-dot.running { background:#7af5b4; box-shadow:0 0 6px #7af5b480; }
+
+    #clock-display { font-family:'Fraunces',serif; font-size:1.9rem; font-weight:100;
+      color:var(--text); letter-spacing:.04em; text-align:center; padding:4px 0; }
+
+    .toggle-row { display:flex; gap:8px; }
+    .toggle { flex:1; padding:7px 6px; font-family:'DM Mono',monospace; font-size:.6rem;
+      letter-spacing:.06em; text-transform:uppercase; border:1px solid var(--border);
+      background:transparent; color:var(--muted); border-radius:4px; cursor:pointer;
+      transition:all .15s; }
+    .toggle.active { border-color:var(--accent); color:var(--accent);
+      background:rgba(200,180,250,.08); }
+
+    .palette-row { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+    .swatch { width:22px; height:22px; border-radius:50%; cursor:pointer;
+      border:2px solid transparent; transition:transform .15s,border-color .15s; }
+    .swatch:hover { transform:scale(1.2); }
+    .swatch.active { border-color:white; }
+
+    .info-block { font-size:.62rem; color:var(--muted); line-height:1.7;
+      border-left:2px solid var(--border); padding-left:10px; }
+    .info-block strong { color:var(--text); font-weight:500; }
+
+    @media (max-width:660px) {
+      #app { grid-template-columns:1fr; grid-template-rows:1fr auto; }
+      #panel { max-height:44vh; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <div id="canvas-wrap">
+    <canvas id="c"></canvas>
+  </div>
+
+  <div id="panel">
+    <div>
+      <div class="panel-title">Clock<br><em>String Pendulum</em></div>
+      <p class="subtitle"><br>A weight slides freely along a string<br>tied between both clock-hand tips.</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="clock-display">12:00</div>
+    <div id="string-warn" style="display:none;font-size:.63rem;color:#ff6060;text-align:center;line-height:1.6;padding:4px 0;"></div>
+
+    <div id="status-row">
+      <div id="status-dot"></div>
+      <span id="status-txt">Stopped</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="primary" id="btn-play">&#9654; Play</button>
+      <button id="btn-step">Step</button>
+      <button class="danger" id="btn-clear">Clear</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="ctrl-group">
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label">Speed (x real)</span>
+          <span class="val-badge" id="lbl-speed">60x</span>
+        </div>
+        <input type="range" id="sl-speed" min="1" max="3600" value="60" step="1"/>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label"><span class="dot" style="background:var(--accent)"></span>Hour hand</span>
+          <span class="val-badge" id="lbl-hour">120</span>
+        </div>
+        <input type="range" id="sl-hour" min="0" max="200" value="120" step="1"/>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label"><span class="dot" style="background:var(--accent2)"></span>Minute hand</span>
+          <span class="val-badge" id="lbl-min">160</span>
+        </div>
+        <input type="range" id="sl-min" min="0" max="200" value="160" step="1"/>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label"><span class="dot" style="background:rgba(245,217,122,0.85)"></span>String length</span>
+          <span class="val-badge" id="lbl-string">350</span>
+        </div>
+        <input type="range" id="sl-string" min="50" max="700" value="350" step="1"/>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label">Trail length</span>
+          <span class="val-badge" id="lbl-trail">5000</span>
+        </div>
+        <input type="range" id="sl-trail" min="100" max="100000" value="5000" step="100"/>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label">Stroke width</span>
+          <span class="val-badge" id="lbl-lw">1.2</span>
+        </div>
+        <input type="range" id="sl-lw" min="0.3" max="4" value="1.2" step="0.1"/>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label">Zoom</span>
+          <span class="val-badge" id="lbl-zoom">100%</span>
+        </div>
+        <input type="range" id="sl-zoom" min="5" max="100" value="100" step="1"/>
+      </div>
+
+      <div class="ctrl-row">
+        <div class="ctrl-row-inline">
+          <span class="ctrl-label">Vertical offset</span>
+          <span class="val-badge" id="lbl-offy">0</span>
+        </div>
+        <input type="range" id="sl-offy" min="-400" max="400" value="0" step="1"/>
+      </div>
+
+    </div>
+
+    <div class="divider"></div>
+
+    <div>
+      <div class="ctrl-label">Draw mode</div>
+      <div class="toggle-row" style="margin-top:6px">
+        <button class="toggle active" id="tog-trail">Trail</button>
+        <button class="toggle" id="tog-ghost">+ Clock</button>
+        <button class="toggle" id="tog-fade">Fade</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="ctrl-label" style="margin-bottom:8px">Colour palette</div>
+      <div class="palette-row" id="palette-row"></div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="info-block">
+      <strong>Physics</strong><br>
+      The weight hangs on a string of fixed total length tied at both hand-tips A and B.
+      It falls to the lowest reachable point, found by ternary search over the
+      along-chord parameter s, with droop depth h solved at each s.
+      When the string is shorter than dist(A,B) the weight snaps to the lower tip.
+    </div>
+
+    <button id="btn-save" style="margin-top:auto">&#11015; Save image</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const TAU = Math.PI * 2;
+
+function bindSlider(id, lblId, fmt, onChange) {
+  const sl = $(id), lbl = $(lblId);
+  lbl.textContent = fmt(+sl.value);
+  sl.addEventListener('input', () => { lbl.textContent = fmt(+sl.value); onChange(+sl.value); });
+}
+
+// ── Canvas ────────────────────────────────────
+const canvas    = $('c');
+const ctx       = canvas.getContext('2d');
+const trailC    = document.createElement('canvas');
+const trailCtx  = trailC.getContext('2d');
+
+const state = {
+  running: false,
+  t: 0,
+  cx: 0, cy: 0,   // logical clock centre
+  hourLen:    120,
+  minLen:     160,
+  stringLen:  350,
+  speed:       60,
+  trailMax:  5000,
+  lineWidth:  1.2,
+  trail:       [],  // [{x,y,c}] logical coords + colour
+  showClock: false,
+  fadeMode:  false,
+  colorT:      0,
+  zoom:        1.0, // scale applied to the whole scene
+  offsetY:     0,   // vertical shift in logical px (+ moves clock up on screen)
+};
+
+function resize() {
+  const wrap = canvas.parentElement;
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  canvas.width = trailC.width = w;
+  canvas.height = trailC.height = h;
+  state.cx = w / 2;
+  state.cy = h / 2;
+  clearTrail();
+}
+window.addEventListener('resize', resize);
+
+// ── Palettes ──────────────────────────────────
+const PALETTES = [
+  { name:'Aurora', stops:['#c8b4fa','#fa9fc8','#f5d97a','#7af5b4','#9fc8fa'] },
+  { name:'Fire',   stops:['#ff4d00','#ff9500','#ffd700','#ff6a00','#ff0062'] },
+  { name:'Ocean',  stops:['#00c6ff','#0072ff','#7af5f5','#00fff2','#006aff'] },
+  { name:'Mono',   stops:['#ffffff','#cccccc','#999999','#666666','#333333'] },
+  { name:'Forest', stops:['#00f260','#0575e6','#a8ff78','#78ffd6','#c6ea8d'] },
+  { name:'Neon',   stops:['#ff00cc','#ff6600','#00ffcc','#ff0033','#33ccff'] },
+];
+let activePalette = 0;
+
+function buildPalette() {
+  const row = $('palette-row');
+  row.innerHTML = '';
+  PALETTES.forEach((p, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (i === activePalette ? ' active' : '');
+    sw.title = p.name;
+    sw.style.background = 'conic-gradient(' + p.stops.join(',') + ')';
+    sw.addEventListener('click', () => {
+      activePalette = i;
+      document.querySelectorAll('.swatch').forEach((s, j) => s.classList.toggle('active', j === i));
+      clearTrail();
+    });
+    row.appendChild(sw);
+  });
+}
+
+function hexToRgb(h) {
+  return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+}
+function lerpColor(a, b, t) {
+  const [r1,g1,b1] = hexToRgb(a), [r2,g2,b2] = hexToRgb(b);
+  return 'rgb('+Math.round(r1+(r2-r1)*t)+','+Math.round(g1+(g2-g1)*t)+','+Math.round(b1+(b2-b1)*t)+')';
+}
+function paletteColor(t) {
+  const stops = PALETTES[activePalette].stops;
+  const n = stops.length;
+  const scaled = ((t % 1) + 1) % 1 * (n - 1);
+  const lo = Math.floor(scaled), hi = Math.min(lo + 1, n - 1);
+  return lerpColor(stops[lo], stops[hi], scaled - lo);
+}
+
+// ── Physics ───────────────────────────────────
+//
+// A massless string of total length L is tied at tip A and tip B.
+// A frictionless bead slides freely and hangs at the lowest point under
+// gravity (downward = +y on screen).
+//
+// The bead W lies on circle(A, dA) ∩ circle(B, dB) where dA + dB = L.
+// Two circles intersect when |dA - dB| < d < dA + dB, i.e. when L > d.
+//
+// For a given dA the intersection points are found by the standard formula:
+//   mid-point along AB:  M = A + (d²+dA²-dB²)/(2d²) * (B-A)
+//   perpendicular offset: h = sqrt(dA² - |M-A|²)
+//   W = M ± h * perp_unit
+// We always take the lower solution (higher y).
+//
+// We maximise W.y over dA ∈ (max(0, L-d)…min(L, d+…)) via ternary search.
+// The function is unimodal because Wy is a smooth hill in dA.
+//
+// Edge cases:
+//   L ≤ d           → string taut; bead at the lower tip.
+//   d ≈ 0           → tips coincide; bead hangs L/2 below.
+
+function handTip(len, angle) {
+  return { x: state.cx + len * Math.cos(angle), y: state.cy + len * Math.sin(angle) };
+}
+
+function clockAngles(t) {
+  return {
+    minAngle:  -Math.PI/2 + (t % 3600)  / 3600  * TAU,
+    hourAngle: -Math.PI/2 + (t % 43200) / 43200 * TAU,
+  };
+}
+
+// Given dA, return the world position of the bead (lower of the two intersections).
+// Returns null if the circles don't intersect.
+function beadAtDa(A, B, dx, dy, d, L, dA) {
+  const dB = L - dA;
+  // Parameter along AB for the radical axis foot
+  const s = (d*d + dA*dA - dB*dB) / (2 * d * d);
+  const Mx = A.x + s * dx;
+  const My = A.y + s * dy;
+  const h2 = dA*dA - (Mx-A.x)*(Mx-A.x) - (My-A.y)*(My-A.y);
+  if (h2 < 0) return null;
+  const h = Math.sqrt(h2);
+  // Perpendicular to AB (two directions); pick the one pointing downward (+y)
+  // Perp vectors: (-dy/d, dx/d) and (dy/d, -dx/d)
+  const px = -dy / d, py = dx / d;
+  // Choose direction with positive y (downward); if zero, pick +y
+  if (py > 0 || (py === 0 && px >= 0)) {
+    return { x: Mx + h * px, y: My + h * py };
+  } else {
+    return { x: Mx - h * px, y: My - h * py };
+  }
+}
+
+function weightPosition(t) {
+  const { minAngle, hourAngle } = clockAngles(t);
+  const A = handTip(state.hourLen, hourAngle);
+  const B = handTip(state.minLen,  minAngle);
+
+  const dx = B.x - A.x, dy = B.y - A.y;
+  const d  = Math.sqrt(dx*dx + dy*dy);
+  const L  = state.stringLen;
+
+  // String too short → bead at the lower tip
+  if (L <= d + 1e-9) {
+    return (A.y >= B.y) ? { x:A.x, y:A.y, A, B } : { x:B.x, y:B.y, A, B };
+  }
+
+  // Tips coincide → bead hangs straight down
+  if (d < 1e-9) {
+    return { x:A.x, y:A.y + L * 0.5, A, B };
+  }
+
+  // Valid range of dA: must satisfy triangle inequality for both circles.
+  //   dA >= |d - dB| = |d - (L-dA)| => handled implicitly
+  //   dA + dB >= d  => L >= d  (already guaranteed)
+  //   dA <= L,  dA >= 0
+  // More precisely, for the circles to intersect: |dA - dB| <= d
+  //   |2*dA - L| <= d  =>  (L-d)/2 <= dA <= (L+d)/2
+  const dA_lo = Math.max(1e-9,  (L - d) / 2);
+  const dA_hi = Math.min(L - 1e-9, (L + d) / 2);
+
+  // Ternary search for dA that maximises W.y (lowest on screen)
+  let lo = dA_lo, hi = dA_hi;
+  for (let i = 0; i < 80; i++) {
+    const m1 = lo + (hi - lo) / 3;
+    const m2 = hi - (hi - lo) / 3;
+    const w1 = beadAtDa(A, B, dx, dy, d, L, m1);
+    const w2 = beadAtDa(A, B, dx, dy, d, L, m2);
+    const y1 = w1 ? w1.y : -Infinity;
+    const y2 = w2 ? w2.y : -Infinity;
+    if (y1 < y2) lo = m1; else hi = m2;
+  }
+
+  const dA_best = (lo + hi) * 0.5;
+  const W = beadAtDa(A, B, dx, dy, d, L, dA_best);
+
+  return { x: W.x, y: W.y, A, B };
+}
+
+function formatClock(t) {
+  const h = Math.floor(t / 3600) % 12 || 12;
+  const m = Math.floor((t % 3600) / 60);
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+
+// ── Rendering ─────────────────────────────────
+function drawClockOverlay({ A, B, x, y }) {
+  const { cx, cy, hourLen, minLen } = state;
+  ctx.save();
+
+  // Faint clock ring + ticks
+  const outerR = Math.max(hourLen, minLen) + 22;
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, outerR, 0, TAU); ctx.stroke();
+  for (let i = 0; i < 12; i++) {
+    const a = -Math.PI/2 + i * TAU/12;
+    ctx.beginPath();
+    ctx.moveTo(cx + (outerR-2)*Math.cos(a), cy + (outerR-2)*Math.sin(a));
+    ctx.lineTo(cx + (outerR+6)*Math.cos(a), cy + (outerR+6)*Math.sin(a));
+    ctx.stroke();
+  }
+
+  // Centre dot
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, TAU); ctx.fill();
+
+  // Hour hand
+  ctx.strokeStyle = 'rgba(200,180,250,0.55)';
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(A.x, A.y); ctx.stroke();
+
+  // Minute hand
+  ctx.strokeStyle = 'rgba(250,159,200,0.55)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(B.x, B.y); ctx.stroke();
+
+  // String: A -> weight -> B (dashed)
+  ctx.strokeStyle = 'rgba(245,217,122,0.30)';
+  ctx.lineWidth = 0.9;
+  ctx.setLineDash([4, 5]);
+  ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(x, y); ctx.lineTo(B.x, B.y); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Tips
+  ctx.fillStyle = 'rgba(200,180,250,0.85)';
+  ctx.beginPath(); ctx.arc(A.x, A.y, 4, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(250,159,200,0.85)';
+  ctx.beginPath(); ctx.arc(B.x, B.y, 4, 0, TAU); ctx.fill();
+
+  // Weight glow
+  const wc = paletteColor(state.colorT);
+  ctx.shadowColor = wc; ctx.shadowBlur = 14;
+  ctx.fillStyle = wc;
+  ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+function renderFrame() {
+  const W = canvas.width, H = canvas.height;
+
+  // Clear background (no transform)
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0, 0, W, H);
+
+  // Apply zoom + vertical offset transform for all scene drawing
+  applyTransform(ctx);
+
+  // Draw trail segments
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineWidth = state.lineWidth;
+  const n = state.trail.length;
+  if (n > 0) {
+    if (state.fadeMode) {
+      for (let i = 0; i < n; i++) {
+        const seg = state.trail[i];
+        const alpha = (i + 1) / n;
+        ctx.globalAlpha = alpha * alpha; // quadratic fade
+        ctx.strokeStyle = seg.col;
+        ctx.beginPath();
+        ctx.moveTo(seg.x1, seg.y1);
+        ctx.lineTo(seg.x2, seg.y2);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    } else {
+      for (let i = 0; i < n; i++) {
+        const seg = state.trail[i];
+        ctx.strokeStyle = seg.col;
+        ctx.beginPath();
+        ctx.moveTo(seg.x1, seg.y1);
+        ctx.lineTo(seg.x2, seg.y2);
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+
+  // Draw live clock overlay or weight dot
+  const pos = weightPosition(state.t);
+  if (state.showClock) {
+    drawClockOverlay(pos);
+  } else {
+    const wc = paletteColor(state.colorT);
+    ctx.save();
+    ctx.shadowColor = wc; ctx.shadowBlur = 18;
+    ctx.fillStyle = wc;
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, 4, 0, TAU); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // Reset transform for any future non-scene drawing
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function strokeSegment(x1, y1, x2, y2, col) {
+  // We store segments in the trail array and redraw each frame via transform.
+  // (The offscreen trailC buffer is kept for potential future use but not used for trail.)
+  state.trail.push({ x1, y1, x2, y2, col });
+  if (state.trail.length > state.trailMax) state.trail.shift();
+}
+
+// ── Animation loop ────────────────────────────
+let rafId = null, lastRealMs = null;
+
+function clearTrail() {
+  state.trail = [];
+  trailCtx.clearRect(0, 0, trailC.width, trailC.height);
+}
+
+// Compute canvas transform: zoom around canvas centre, then shift by offsetY
+function applyTransform(context) {
+  const W = canvas.width, H = canvas.height;
+  const z = state.zoom;
+  // Translate so canvas centre stays fixed, apply zoom, then apply vertical offset
+  context.setTransform(z, 0, 0, z,
+    W/2 - z * W/2,
+    H/2 - z * H/2 - state.offsetY * z);
+}
+
+function tick(realMs) {
+  if (!state.running) return;
+  rafId = requestAnimationFrame(tick);
+  if (lastRealMs === null) lastRealMs = realMs;
+  const dtReal = Math.min((realMs - lastRealMs) / 1000, 0.1);
+  lastRealMs = realMs;
+
+  const simDt   = dtReal * state.speed;
+  const subSteps = Math.min(Math.ceil(simDt / 0.4), 600);
+  const subDt    = simDt / subSteps;
+
+  for (let i = 0; i < subSteps; i++) {
+    const prev    = weightPosition(state.t);
+    state.t      += subDt;
+    state.colorT  = (state.colorT + subDt * 0.00015) % 1;
+    const curr    = weightPosition(state.t);
+    const col     = paletteColor(state.colorT);
+
+    strokeSegment(prev.x, prev.y, curr.x, curr.y, col);
+  }
+
+  $('clock-display').textContent = formatClock(state.t);
+  renderFrame();
+}
+
+function doStep() {
+  const prev   = weightPosition(state.t);
+  state.t     += 1;
+  state.colorT = (state.colorT + 0.00015) % 1;
+  const curr   = weightPosition(state.t);
+  const col    = paletteColor(state.colorT);
+  strokeSegment(prev.x, prev.y, curr.x, curr.y, col);
+  $('clock-display').textContent = formatClock(state.t);
+  renderFrame();
+}
+
+// ── UI wiring ─────────────────────────────────
+$('btn-play').addEventListener('click', () => {
+  state.running = !state.running;
+  $('btn-play').textContent = state.running ? '\u23F8 Pause' : '\u25B6 Play';
+  $('status-dot').classList.toggle('running', state.running);
+  $('status-txt').textContent = state.running ? 'Running' : 'Paused';
+  if (state.running) { lastRealMs = null; rafId = requestAnimationFrame(tick); }
+  else if (rafId) cancelAnimationFrame(rafId);
+});
+
+$('btn-step').addEventListener('click', doStep);
+
+$('btn-clear').addEventListener('click', () => {
+  state.t = 0; state.colorT = 0;
+  clearTrail();
+  $('clock-display').textContent = '12:00';
+  renderFrame();
+});
+
+$('btn-save').addEventListener('click', () => {
+  const tmp = document.createElement('canvas');
+  tmp.width = canvas.width; tmp.height = canvas.height;
+  const tc = tmp.getContext('2d');
+  tc.fillStyle = '#0a0a0f';
+  tc.fillRect(0, 0, tmp.width, tmp.height);
+  tc.drawImage(trailC, 0, 0);
+  tc.drawImage(canvas, 0, 0);
+  const a = document.createElement('a');
+  a.download = 'clock-pendulum.png';
+  a.href = tmp.toDataURL();
+  a.click();
+});
+
+// Warning: string shorter than sum of hand lengths
+function checkStringWarn() {
+  const warn = $('string-warn');
+  const need = state.hourLen + state.minLen;
+  if (state.stringLen < need) {
+    warn.textContent = 'String (' + state.stringLen + ') < hand lengths (' + state.hourLen + ' + ' + state.minLen + ' = ' + need + '). Weight pinned to a tip.';
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+// Speed: no trail reset
+bindSlider('sl-speed', 'lbl-speed', v => v+'x', v => { state.speed = v; });
+
+// Geometry: reset trail so pattern reflects new config
+function geomSlider(id, lblId, fmt, setter) {
+  bindSlider(id, lblId, fmt, v => { setter(v); checkStringWarn(); clearTrail(); renderFrame(); });
+}
+geomSlider('sl-hour',   'lbl-hour',   v => ''+v, v => state.hourLen   = v);
+geomSlider('sl-min',    'lbl-min',    v => ''+v, v => state.minLen    = v);
+geomSlider('sl-string', 'lbl-string', v => ''+v, v => state.stringLen = v);
+
+// Visual: no reset needed
+bindSlider('sl-trail', 'lbl-trail', v => v >= 1000 ? (v/1000).toFixed(0)+'k' : ''+v, v => state.trailMax = v);
+bindSlider('sl-lw',    'lbl-lw',    v => ''+v,    v => state.lineWidth = v);
+bindSlider('sl-zoom',  'lbl-zoom',  v => Math.round(v)+'%', v => { state.zoom = v / 100; renderFrame(); });
+bindSlider('sl-offy',  'lbl-offy',  v => ''+v,    v => { state.offsetY = v; renderFrame(); });
+
+// Draw mode toggles
+function setMode(clock, fade) {
+  state.showClock = clock;
+  state.fadeMode  = fade;
+  $('tog-trail').classList.toggle('active', !clock && !fade);
+  $('tog-ghost').classList.toggle('active',  clock);
+  $('tog-fade') .classList.toggle('active',  fade);
+  clearTrail();
+}
+$('tog-trail').addEventListener('click', () => setMode(false, false));
+$('tog-ghost').addEventListener('click', () => setMode(!state.showClock, state.fadeMode));
+$('tog-fade') .addEventListener('click', () => setMode(state.showClock, !state.fadeMode));
+
+// ── Init ──────────────────────────────────────
+
+// URL of your deployed Google Cloud Function.
+// Replace with your actual function URL after deployment.
+const CONFIG_URL = 'https://REGION-PROJECT_ID.cloudfunctions.net/pendulumDefaults';
+
+// Fallback defaults used if the fetch fails or times out.
+const FALLBACK_DEFAULTS = {
+  hourLen:    120,
+  minLen:     160,
+  stringLen:  350,
+  speed:       60,
+  trailMax:  5000,
+  lineWidth:  1.2,
+  zoom:       100,   // percent (5–100)
+  offsetY:      0,
+  palette:      0,   // index into PALETTES array
+};
+
+function applyDefaults(cfg) {
+  // Merge fetched config over fallback so partial responses still work
+  const d = Object.assign({}, FALLBACK_DEFAULTS, cfg);
+
+  // Apply to state
+  state.hourLen   = d.hourLen;
+  state.minLen    = d.minLen;
+  state.stringLen = d.stringLen;
+  state.speed     = d.speed;
+  state.trailMax  = d.trailMax;
+  state.lineWidth = d.lineWidth;
+  state.zoom      = d.zoom / 100;
+  state.offsetY   = d.offsetY;
+  activePalette   = Math.max(0, Math.min(PALETTES.length - 1, d.palette));
+
+  // Sync all slider positions and badge labels
+  function setSlider(id, lblId, value, fmt) {
+    const sl = $(id);
+    if (sl) {
+      sl.value = value;
+      const lbl = $(lblId);
+      if (lbl) lbl.textContent = fmt(value);
+    }
+  }
+
+  setSlider('sl-speed',  'lbl-speed',  d.speed,      v => v + 'x');
+  setSlider('sl-hour',   'lbl-hour',   d.hourLen,    v => '' + v);
+  setSlider('sl-min',    'lbl-min',    d.minLen,     v => '' + v);
+  setSlider('sl-string', 'lbl-string', d.stringLen,  v => '' + v);
+  setSlider('sl-trail',  'lbl-trail',  d.trailMax,   v => v >= 1000 ? (v/1000).toFixed(0)+'k' : ''+v);
+  setSlider('sl-lw',     'lbl-lw',     d.lineWidth,  v => '' + v);
+  setSlider('sl-zoom',   'lbl-zoom',   d.zoom,       v => Math.round(v) + '%');
+  setSlider('sl-offy',   'lbl-offy',   d.offsetY,    v => '' + v);
+
+  buildPalette();      // rebuilds swatches with correct active state
+  checkStringWarn();
+  renderFrame();
+}
+
+async function init() {
+  buildPalette();      // render palette immediately with fallback active index
+  resize();
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout
+    const res = await fetch(CONFIG_URL, { signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const cfg = await res.json();
+    applyDefaults(cfg);
+  } catch (err) {
+    console.warn('Could not load config from Cloud Function, using fallback defaults.', err.message);
+    applyDefaults({});  // empty → pure fallback
+  }
+}
+
+init();
+</script>
+</body>
+</html>

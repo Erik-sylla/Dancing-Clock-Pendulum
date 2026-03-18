@@ -1,0 +1,13 @@
+{
+  "name": "pendulum-defaults",
+  "version": "1.0.0",
+  "description": "Google Cloud Function — returns default config for the Clock String Pendulum visualiser.",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {}
+}
